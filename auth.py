@@ -1,11 +1,9 @@
 import streamlit as st
-from db import get_connection
+from db import consultar_uno
 
 def login_usuario(cedula, password):
-    conn = get_connection()
-    cur = conn.cursor()
 
-    cur.execute("""
+    user = consultar_uno("""
         SELECT cedula, nombre_completo, perfil, puesto
         FROM personal
         WHERE cedula = %s
@@ -13,7 +11,6 @@ def login_usuario(cedula, password):
           AND estado = 'activo'
     """, (cedula.strip(), password.strip()))
 
-    user = cur.fetchone()
 
     if user:
         st.session_state["usuario"] = {
