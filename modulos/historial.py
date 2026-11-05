@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from db import get_connection
+from db import leer_dataframe, transaccion
 from permisos import validar_acceso
 
 def render():
@@ -23,7 +23,6 @@ def render():
 
     st.title("📈 Historial de Reportes")
 
-    conn = get_connection()
 
     # =========================
     # Filtro de fechas
@@ -85,7 +84,6 @@ def render():
         r.fecha_reporte,
         p.nombre_completo AS persona,
         r.supervisor_nombre AS supervisor,
-        r.zona,
         r.horas,
         r.produccion,
         r.aprobados,
@@ -99,7 +97,7 @@ def render():
     ORDER BY r.fecha_reporte, persona
     """
 
-    df_prod = pd.read_sql(query_prod, conn, params=params_base)
+    df_prod = leer_dataframe(query_prod, params=params_base)
     st.dataframe(df_prod, use_container_width=True, hide_index=True)
 
     # =========================
@@ -125,7 +123,7 @@ def render():
     ORDER BY r.fecha_reporte, persona
     """
 
-    df_eventos = pd.read_sql(query_eventos, conn, params=params_base)
+    df_eventos = leer_dataframe(query_eventos, params=params_base)
     st.dataframe(df_eventos, use_container_width=True, hide_index=True)
 
     # =========================
@@ -146,7 +144,7 @@ def render():
     ORDER BY r.fecha_reporte, persona
     """
 
-    df_horas = pd.read_sql(query_horas, conn, params=params_base)
+    df_horas = leer_dataframe(query_horas, params=params_base)
 
     df_horas["estado"] = df_horas["total_horas"].apply(
         lambda x: "✅ OK" if 8.4 <= float(x) <= 8.6 else "⚠️ Revisar"
