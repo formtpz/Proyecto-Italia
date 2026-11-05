@@ -22,7 +22,7 @@ def render():
                                 max_value=24.0, step=0.5)
         tipo_produccion = st.selectbox(
             "Tipo de producción / trabajo atendido",
-            ["Aviones", "Misiles", "Techos", "Forestal y otros"])
+            ["Aviones", "Misiles", "Techos", "Forestal", "Otros"])
         produccion = st.number_input("Cantidad producida", min_value=0, step=1)
         estado = st.selectbox("Estado", [ "finalizado","pendiente", "corrección"])
         observaciones = st.text_area("Observaciones")
