@@ -123,7 +123,7 @@ def _solicitar(usuario):
             except Exception as exc:
                 st.error(f"No fue posible crear la solicitud: {exc}")
 
-    st.subheader("Editar o eliminar mis solicitudes pendientes")
+    st.subheader("Gestionar mis solicitudes pendientes")
     pendientes = leer_dataframe("""
         SELECT c.id, c.fecha, c.id_asociado, r.tipo_reporte,
                c.solucion, c.tipo_error, c.columna, c.nuevo_valor
@@ -139,7 +139,8 @@ def _solicitar(usuario):
             f"Solicitud #{int(fila.id)} — Reporte #{int(fila.id_asociado)}":
                 int(fila.id) for fila in pendientes.itertuples()
         }
-        seleccion = st.selectbox("Solicitud pendiente", list(opciones),
+        st.subheader("Editar una solicitud")
+        seleccion = st.selectbox("Solicitud que deseas editar", list(opciones),
                                  key="solicitud_pendiente")
         fila = pendientes.loc[pendientes["id"] == opciones[seleccion]].iloc[0]
         columnas = _opciones_columnas(fila["tipo_reporte"])
@@ -175,25 +176,46 @@ def _solicitar(usuario):
             except Exception as exc:
                 st.error(str(exc))
 
-        with st.form(f"eliminar_solicitud_{int(fila['id'])}"):
-            st.warning("Esto cancela la solicitud pendiente y la conserva en el historial. NO elimina el reporte.")
-            confirmar = st.checkbox("Confirmo que deseo eliminar esta solicitud")
-            eliminar = st.form_submit_button("Eliminar solicitud pendiente")
-        if eliminar:
-            if not confirmar:
+
+        st.divider()
+        st.subheader("Cancelar solicitudes pendientes")
+        st.caption("Selecciona una o varias solicitudes para cancelarlas. Los reportes originales no se eliminan.")
+        opciones_cancelacion = {
+            f"Solicitud #{int(fila.id)} | Reporte #{int(fila.id_asociado)} | {fila.solucion}":
+                int(fila.id) for fila in pendientes.itertuples()
+        }
+        with st.form("cancelar_solicitudes_pendientes"):
+            seleccion_cancelar = st.multiselect(
+                "Solicitudes que deseas cancelar",
+                options=list(opciones_cancelacion),
+                key="seleccion_cancelar_solicitudes",
+            )
+            confirmar_cancelacion = st.checkbox(
+                "Confirmo que deseo cancelar las solicitudes seleccionadas"
+            )
+            cancelar = st.form_submit_button("Cancelar solicitudes seleccionadas")
+        if cancelar:
+            if not seleccion_cancelar:
+                st.warning("Selecciona al menos una solicitud.")
+            elif not confirmar_cancelacion:
                 st.warning("Marca la confirmación.")
             else:
-                with transaccion() as cur:
-                    cur.execute("""
-                        UPDATE correcciones SET estado='cancelada'
-                        WHERE id=%s AND cedula=%s AND estado='pendiente'
-                    """, (int(fila["id"]), cedula))
-                    borradas = cur.rowcount
-                if borradas:
-                    st.success("Solicitud cancelada y conservada en el historial; el reporte permanece intacto.")
+                ids_cancelar = [opciones_cancelacion[x] for x in seleccion_cancelar]
+                try:
+                    with transaccion() as cur:
+                        cur.execute("""
+                            UPDATE correcciones
+                               SET estado='cancelada'
+                             WHERE id = ANY(%s) AND cedula=%s AND estado='pendiente'
+                        """, (ids_cancelar, cedula))
+                        cantidad = cur.rowcount
+                    st.success(
+                        f"{cantidad} solicitud(es) cancelada(s). "
+                        "Permanecen en el historial y los reportes originales no cambian."
+                    )
                     st.rerun()
-                else:
-                    st.error("No se pudo cancelar: la solicitud ya no está pendiente.")
+                except Exception as exc:
+                    st.error(f"No fue posible cancelar las solicitudes: {exc}")
 
     st.subheader("Historial de mis solicitudes")
     historico = leer_dataframe("""
