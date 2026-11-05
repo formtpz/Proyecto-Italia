@@ -269,10 +269,9 @@ def _coordinar():
                     raise ValueError("Esta solicitud ya no está pendiente o el reporte fue eliminado.")
                 _, reporte_id, accion, columna, valor, tipo, cedula_personal = datos
                 if accion == "Eliminar":
-                    # Conservamos la trazabilidad de la solicitud antes de borrar el reporte
-                    # (italia.correcciones referencia reportes con ON DELETE CASCADE).
+                    # La FK de correcciones usa ON DELETE CASCADE: las solicitudes del
+                    # reporte se eliminan con él. La confirmación exige revisión previa.
                     cur.execute("DELETE FROM reportes WHERE id=%s", (reporte_id,))
-                    # La solicitud también desaparece por CASCADE en el esquema actual.
                 elif accion == "Modificar":
                     if columna not in _opciones_columnas(tipo).values():
                         raise ValueError("La columna solicitada no está permitida para este tipo de reporte.")
