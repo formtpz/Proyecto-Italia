@@ -176,7 +176,7 @@ def _solicitar(usuario):
                 st.error(str(exc))
 
         with st.form(f"eliminar_solicitud_{int(fila['id'])}"):
-            st.warning("Esto elimina únicamente la solicitud pendiente, NO el reporte.")
+            st.warning("Esto cancela la solicitud pendiente y la conserva en el historial. NO elimina el reporte.")
             confirmar = st.checkbox("Confirmo que deseo eliminar esta solicitud")
             eliminar = st.form_submit_button("Eliminar solicitud pendiente")
         if eliminar:
@@ -185,15 +185,15 @@ def _solicitar(usuario):
             else:
                 with transaccion() as cur:
                     cur.execute("""
-                        DELETE FROM correcciones
+                        UPDATE correcciones SET estado='cancelada'
                         WHERE id=%s AND cedula=%s AND estado='pendiente'
                     """, (int(fila["id"]), cedula))
                     borradas = cur.rowcount
                 if borradas:
-                    st.success("Solicitud eliminada; el reporte permanece intacto.")
+                    st.success("Solicitud cancelada y conservada en el historial; el reporte permanece intacto.")
                     st.rerun()
                 else:
-                    st.error("No se pudo eliminar: la solicitud ya no está pendiente.")
+                    st.error("No se pudo cancelar: la solicitud ya no está pendiente.")
 
     st.subheader("Historial de mis solicitudes")
     historico = leer_dataframe("""
@@ -211,13 +211,27 @@ def _coordinar():
     solicitudes = leer_dataframe(f"""
         SELECT c.id, c.fecha, c.cedula, c.nombre, c.id_asociado,
                r.tipo_reporte, c.solucion, c.columna, c.nuevo_valor,
-               c.tipo_error AS motivo, c.estado
+               c.tipo_error AS motivo, c.estado, c.procesado_por, c.procesado_en
         FROM correcciones c
-        JOIN reportes r ON r.id=c.id_asociado
+        LEFT JOIN reportes r ON r.id=c.id_asociado
         {where}
         ORDER BY c.fecha DESC
     """)
     st.dataframe(solicitudes, use_container_width=True, hide_index=True)
+    st.subheader("Resumen de solicitudes por persona")
+    resumen = leer_dataframe("""
+        SELECT cedula, nombre,
+               COUNT(*) AS total_solicitudes,
+               COUNT(*) FILTER (WHERE solucion='Modificar') AS modificaciones,
+               COUNT(*) FILTER (WHERE solucion='Eliminar') AS eliminaciones,
+               COUNT(*) FILTER (WHERE estado='corregido') AS aplicadas,
+               COUNT(*) FILTER (WHERE estado='cancelada') AS canceladas,
+               COUNT(*) FILTER (WHERE estado='rechazada') AS rechazadas
+        FROM correcciones
+        GROUP BY cedula, nombre
+        ORDER BY total_solicitudes DESC, nombre
+    """)
+    st.dataframe(resumen, use_container_width=True, hide_index=True)
     if solicitudes.empty:
         st.info("No hay solicitudes para el filtro seleccionado.")
         return
@@ -269,9 +283,19 @@ def _coordinar():
                     raise ValueError("Esta solicitud ya no está pendiente o el reporte fue eliminado.")
                 _, reporte_id, accion, columna, valor, tipo, cedula_personal = datos
                 if accion == "Eliminar":
-                    # La FK de correcciones usa ON DELETE CASCADE: las solicitudes del
-                    # reporte se eliminan con él. La confirmación exige revisión previa.
+                    cur.execute("""
+                        INSERT INTO correcciones_auditoria
+                            (correccion_id, reporte_id, cedula_solicitante, accion,
+                             columna, valor_anterior, valor_nuevo, procesado_por)
+                        VALUES (%s, %s, %s, 'Eliminar', NULL, %s, NULL, %s)
+                    """, (solicitud_id, reporte_id, cedula_personal,
+                          str(reporte_id), st.session_state["usuario"]["cedula"]))
                     cur.execute("DELETE FROM reportes WHERE id=%s", (reporte_id,))
+                    cur.execute("""
+                        UPDATE correcciones
+                        SET estado='corregido', procesado_por=%s, procesado_en=NOW()
+                        WHERE id=%s AND estado='pendiente'
+                    """, (st.session_state["usuario"]["cedula"], solicitud_id))
                 elif accion == "Modificar":
                     if columna not in _opciones_columnas(tipo).values():
                         raise ValueError("La columna solicitada no está permitida para este tipo de reporte.")
@@ -280,12 +304,25 @@ def _coordinar():
                         cur.execute("SELECT 1 FROM tipos_evento WHERE id=%s", (nuevo,))
                         if cur.fetchone() is None:
                             raise ValueError("El tipo de evento indicado no existe.")
+                    cur.execute(sql.SQL("SELECT {} FROM reportes WHERE id=%s").format(
+                        sql.Identifier(columna)), (reporte_id,))
+                    anterior = cur.fetchone()[0]
                     cur.execute(sql.SQL("UPDATE reportes SET {}=%s WHERE id=%s").format(
                         sql.Identifier(columna)), (nuevo, reporte_id))
                     cur.execute("""
-                        UPDATE correcciones SET estado='corregido'
+                        INSERT INTO correcciones_auditoria
+                            (correccion_id, reporte_id, cedula_solicitante, accion,
+                             columna, valor_anterior, valor_nuevo, procesado_por)
+                        VALUES (%s, %s, %s, 'Modificar', %s, %s, %s, %s)
+                    """, (solicitud_id, reporte_id, cedula_personal, columna,
+                          str(anterior) if anterior is not None else None,
+                          str(nuevo) if nuevo is not None else None,
+                          st.session_state["usuario"]["cedula"]))
+                    cur.execute("""
+                        UPDATE correcciones
+                        SET estado='corregido', procesado_por=%s, procesado_en=NOW()
                         WHERE id=%s AND estado='pendiente'
-                    """, (solicitud_id,))
+                    """, (st.session_state["usuario"]["cedula"], solicitud_id))
                 else:
                     raise ValueError("Tipo de solicitud no reconocido.")
             st.success("Solicitud aplicada correctamente.")
