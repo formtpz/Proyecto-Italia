@@ -83,19 +83,21 @@ def _solicitar(usuario):
     else:
         st.dataframe(reportes, use_container_width=True, hide_index=True)
 
-        opciones = {
-            f"#{int(fila.id)} — {fila.fecha_reporte} — {fila.tipo_reporte}": int(fila.id)
-            for fila in reportes.itertuples()
-        }
         with st.form("nueva_solicitud_correccion", clear_on_submit=True):
-            seleccionado = st.selectbox("Reporte a corregir", list(opciones))
+            reporte_id_ingresado = st.number_input(
+                "ID del reporte que deseas corregir",
+                min_value=1,
+                step=1,
+                value=1,
+                help="Consulta el ID en la tabla de tus reportes recientes.",
+            )
             accion = st.radio("Tipo de solicitud", ("Modificar", "Eliminar"),
                               horizontal=True)
-            detalle = st.text_area("Motivo de la solicitud")
+            detalle = st.text_area("Motivo de la solicitud", max_chars=100)
             crear = st.form_submit_button("Registrar solicitud")
         if crear:
             try:
-                reporte_id = opciones[seleccionado]
+                reporte_id = int(reporte_id_ingresado)
                 with transaccion() as cur:
                     cur.execute("""
                         SELECT id, tipo_reporte FROM reportes
