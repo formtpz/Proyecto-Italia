@@ -8,8 +8,6 @@ PERMISOS_POR_PERFIL = {
     1: [
         "Dashboards",
         "RRHH",
-        "Cargar Asignaciones",
-        "Asignación de Producción",
         "Reportes Producción",
         "Eventos",
         "Historial",
@@ -25,7 +23,6 @@ PERMISOS_POR_PERFIL = {
 
     # 3 = Operador / Supervisor
     3: [
-        "Asignación de Producción",
         "Reportes Producción",
         "Eventos",
         "Historial",
@@ -35,7 +32,6 @@ PERMISOS_POR_PERFIL = {
 
     # 4 = Control de Calidad (MISMO acceso que Operador)
     4: [
-        "Asignación de Producción",
         "Reportes Producción",
         "Eventos",
         "Historial",
@@ -44,7 +40,6 @@ PERMISOS_POR_PERFIL = {
     ],
 
     5: [
-        "Asignación de Producción",
         "Dashboards",
         "Reportes Producción",
         "Eventos",
