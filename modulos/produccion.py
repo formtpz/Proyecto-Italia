@@ -20,9 +20,9 @@ def render():
         fecha_reporte = st.date_input("Fecha", value=date.today())
         horas = st.number_input("Horas laboradas (decimal)", min_value=0.0,
                                 max_value=24.0, step=0.5)
-        tipo_produccion = st.text_input(
-            "Tipo de producción / trabajo atendido", max_chars=200,
-            help="Describa qué trabajo de producción realizó.")
+        tipo_produccion = st.selectbox(
+            "Tipo de producción / trabajo atendido",
+            ["Aviones", "Misiles", "Techos", "Forestal y otros"])
         produccion = st.number_input("Cantidad producida", min_value=0, step=1)
         estado = st.selectbox("Estado", [ "finalizado","pendiente", "corrección"])
         observaciones = st.text_area("Observaciones")
