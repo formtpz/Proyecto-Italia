@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-from db import get_connection
+from db import leer_dataframe, transaccion
 from permisos import validar_acceso
 
 
@@ -12,7 +12,6 @@ def render():
     perfil = usuario["perfil"]
     cedula = usuario["cedula"]
 
-    conn = get_connection()
 
     st.title("🛠️ Correcciones de Reportes")
 
@@ -28,13 +27,12 @@ def render():
         with col2:
             fecha_fin = st.date_input("Hasta")
 
-        df_registros = pd.read_sql("""
+        df_registros = leer_dataframe("""
             SELECT
                 id,
                 fecha_reporte,
                 cedula_personal,
                 horas,
-                zona,
                 produccion,
                 aprobados,
                 rechazados,
@@ -43,7 +41,7 @@ def render():
             WHERE fecha_reporte BETWEEN %s AND %s 
               AND cedula_personal = %s
             ORDER BY fecha_reporte DESC
-        """, conn, params=[fecha_inicio, fecha_fin, cedula])
+        """, params=[fecha_inicio, fecha_fin, cedula])
 
         st.info("Seleccione visualmente el registro con error y copie el ID")
         st.dataframe(df_registros, use_container_width=True)
@@ -58,7 +56,6 @@ def render():
         columnas_reportes = [
             "fecha_reporte",
             "horas",
-            "zona",
             "produccion",
             "aprobados",
             "rechazados",
@@ -88,34 +85,33 @@ def render():
             submit = st.form_submit_button("📨 Enviar solicitud")
 
         if submit:
-            cur = conn.cursor()
-            cur.execute("""
-                INSERT INTO correcciones (
-                    cedula,
-                    nombre,
-                    fecha,
+                    with transaccion() as cur:
+                        cur.execute("""
+                    INSERT INTO correcciones (
+                        cedula,
+                        nombre,
+                        fecha,
+                        id_asociado,
+                        tipo_error,
+                        solucion,
+                        tabla,
+                        columna,
+                        nuevo_valor,
+                        estado
+                    )
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                """, (
+                    usuario["cedula"],
+                    usuario["nombre"],
+                    datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                     id_asociado,
-                    tipo_error,
+                    columna,
                     solucion,
-                    tabla,
+                    "reportes",
                     columna,
                     nuevo_valor,
-                    estado
-                )
-                VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
-            """, (
-                usuario["cedula"],
-                usuario["nombre"],
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                id_asociado,
-                columna,
-                solucion,
-                "reportes",
-                columna,
-                nuevo_valor,
-                "pendiente"
-            ))
-            conn.commit()
+                    "pendiente"
+                ))
             st.success("✅ Solicitud registrada correctamente")
 
         st.divider()
@@ -125,7 +121,7 @@ def render():
         # =====================================================
         st.subheader("📜 Mis solicitudes")
 
-        df = pd.read_sql("""
+        df = leer_dataframe("""
             SELECT
                 fecha,
                 id_asociado,
@@ -135,7 +131,7 @@ def render():
             FROM correcciones
             WHERE cedula = %s
             ORDER BY fecha DESC
-        """, conn, params=[usuario["cedula"]])
+        """, params=[usuario["cedula"]])
 
         st.dataframe(df, use_container_width=True)
 
@@ -149,7 +145,7 @@ def render():
         # =====================================================
         # TABLA 1: CORRECCIONES
         # =====================================================
-        df_corr = pd.read_sql("""
+        df_corr = leer_dataframe("""
             SELECT
                 id,
                 fecha,
@@ -163,7 +159,7 @@ def render():
             FROM correcciones
             WHERE estado = 'pendiente'
             ORDER BY fecha
-        """, conn)
+        """)
 
         if df_corr.empty:
             st.info("No hay correcciones pendientes")
@@ -194,14 +190,13 @@ def render():
         )
 
         if st.button("💾 Guardar cambios de correcciones"):
-            cur = conn.cursor()
-            for _, row in df_corr_edit.iterrows():
-                cur.execute("""
-                    UPDATE correcciones
-                    SET estado = %s
-                    WHERE id = %s
-                """, (row["estado"], int(row["id"])))
-            conn.commit()
+                    for _, row in df_corr_edit.iterrows():
+                with transaccion() as cur:
+                    cur.execute("""
+                        UPDATE correcciones
+                        SET estado = %s
+                        WHERE id = %s
+                    """, (row["estado"], int(row["id"])))
             st.success("✅ Estados actualizados")
             st.rerun()
 
@@ -214,12 +209,12 @@ def render():
 
         ids_reportes = df_corr["id_asociado"].astype(int).unique().tolist()
 
-        df_rep = pd.read_sql("""
+        df_rep = leer_dataframe("""
             SELECT *
             FROM reportes
             WHERE id = ANY(%s)
             ORDER BY id
-        """, conn, params=[ids_reportes])
+        """, params=[ids_reportes])
 
         if df_rep.empty:
             st.info("No hay reportes asociados")
@@ -235,8 +230,7 @@ def render():
         )
 
         if st.button("💾 Guardar cambios en reportes"):
-            cur = conn.cursor()
-
+        
             columnas = [c for c in df_rep_edit.columns if c != "id"]
 
             for _, row in df_rep_edit.iterrows():
@@ -244,12 +238,12 @@ def render():
                 valores = [row[c] for c in columnas]
                 valores.append(int(row["id"]))
 
-                cur.execute(
-                    f"UPDATE reportes SET {set_clause} WHERE id = %s",
-                    valores
-                )
-
-            conn.commit()
+                with transaccion() as cur:
+                    cur.execute(
+                        f"UPDATE reportes SET {set_clause} WHERE id = %s",
+                        valores
+                    )
+    
             st.success("✅ Reportes actualizados correctamente")
             st.rerun()
 
@@ -267,11 +261,11 @@ def render():
 
         if id_eliminar:
             try:
-                df_ver = pd.read_sql("""
+                df_ver = leer_dataframe("""
                     SELECT *
                     FROM reportes
                     WHERE id = %s
-                """, conn, params=[int(id_eliminar)])
+                """, params=[int(id_eliminar)])
 
                 if df_ver.empty:
                     st.warning("No existe un reporte con ese ID")
@@ -285,13 +279,12 @@ def render():
 
                     if confirmar:
                         if st.button("🚨 Eliminar definitivamente"):
-                            cur = conn.cursor()
-                            cur.execute("""
-                                DELETE FROM reportes
-                                WHERE id = %s
-                            """, (int(id_eliminar),))
-
-                            conn.commit()
+                                                    with transaccion() as cur:
+                                                        cur.execute("""
+                                    DELETE FROM reportes
+                                    WHERE id = %s
+                                """, (int(id_eliminar),))
+    
                             st.success("✅ Reporte eliminado correctamente")
                             st.rerun()
 
