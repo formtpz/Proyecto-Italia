@@ -24,7 +24,7 @@ def render():
             "Tipo de producción / trabajo atendido", max_chars=200,
             help="Describa qué trabajo de producción realizó.")
         produccion = st.number_input("Cantidad producida", min_value=0, step=1)
-        estado = st.selectbox("Estado", ["pendiente", "finalizado", "corregido"])
+        estado = st.selectbox("Estado", [ "finalizado","pendiente", "corrección"])
         observaciones = st.text_area("Observaciones")
         submit = st.form_submit_button("Guardar reporte")
 
