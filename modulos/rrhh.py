@@ -11,7 +11,7 @@ def render():
     validar_acceso("RRHH")
 
     usuario = st.session_state.get("usuario")
-    if usuario["perfil"] != 1:
+    if usuario["perfil"] not in (1, 2):
         st.error("⛔ Acceso restringido al módulo de RRHH")
         st.stop()
 
