@@ -178,22 +178,22 @@ def _solicitar(usuario):
 
 
         st.divider()
-        st.subheader("Cancelar solicitudes pendientes")
-        st.caption("Selecciona una o varias solicitudes para cancelarlas. Los reportes originales no se eliminan.")
+        st.subheader("Eliminar solicitudes pendientes")
+        st.caption("Elimina definitivamente solicitudes creadas por error. Los reportes originales no se modifican.")
         opciones_cancelacion = {
             f"Solicitud #{int(fila.id)} | Reporte #{int(fila.id_asociado)} | {fila.solucion}":
                 int(fila.id) for fila in pendientes.itertuples()
         }
         with st.form("cancelar_solicitudes_pendientes"):
             seleccion_cancelar = st.multiselect(
-                "Solicitudes que deseas cancelar",
+                "Solicitudes que deseas eliminar",
                 options=list(opciones_cancelacion),
                 key="seleccion_cancelar_solicitudes",
             )
             confirmar_cancelacion = st.checkbox(
-                "Confirmo que deseo cancelar las solicitudes seleccionadas"
+                "Confirmo que deseo eliminar definitivamente estas solicitudes"
             )
-            cancelar = st.form_submit_button("Cancelar solicitudes seleccionadas")
+            cancelar = st.form_submit_button("Eliminar solicitudes seleccionadas")
         if cancelar:
             if not seleccion_cancelar:
                 st.warning("Selecciona al menos una solicitud.")
@@ -204,18 +204,17 @@ def _solicitar(usuario):
                 try:
                     with transaccion() as cur:
                         cur.execute("""
-                            UPDATE correcciones
-                               SET estado='cancelada'
+                            DELETE FROM correcciones
                              WHERE id = ANY(%s) AND cedula=%s AND estado='pendiente'
                         """, (ids_cancelar, cedula))
                         cantidad = cur.rowcount
                     st.success(
-                        f"{cantidad} solicitud(es) cancelada(s). "
-                        "Permanecen en el historial y los reportes originales no cambian."
+                        f"{cantidad} solicitud(es) eliminada(s) definitivamente. "
+                        "Los reportes originales no cambian."
                     )
                     st.rerun()
                 except Exception as exc:
-                    st.error(f"No fue posible cancelar las solicitudes: {exc}")
+                    st.error(f"No fue posible eliminar las solicitudes: {exc}")
 
     st.subheader("Historial de mis solicitudes")
     historico = leer_dataframe("""
