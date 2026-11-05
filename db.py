@@ -7,7 +7,7 @@ import streamlit as st
 
 @st.cache_resource
 def _resource():
-    return {"conn": psycopg2.connect(st.secrets["db_credentials"]["URI"]),
+    return {"conn": psycopg2.connect(st.secrets["db_credentials"]["URI"], options="-c search_path=italia"),
             "lock": threading.RLock()}
 
 @contextmanager
