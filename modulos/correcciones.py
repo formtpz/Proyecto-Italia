@@ -283,13 +283,6 @@ def _coordinar():
                     raise ValueError("Esta solicitud ya no está pendiente o el reporte fue eliminado.")
                 _, reporte_id, accion, columna, valor, tipo, cedula_personal = datos
                 if accion == "Eliminar":
-                    cur.execute("""
-                        INSERT INTO correcciones_auditoria
-                            (correccion_id, reporte_id, cedula_solicitante, accion,
-                             columna, valor_anterior, valor_nuevo, procesado_por)
-                        VALUES (%s, %s, %s, 'Eliminar', NULL, %s, NULL, %s)
-                    """, (solicitud_id, reporte_id, cedula_personal,
-                          str(reporte_id), st.session_state["usuario"]["cedula"]))
                     cur.execute("DELETE FROM reportes WHERE id=%s", (reporte_id,))
                     cur.execute("""
                         UPDATE correcciones
