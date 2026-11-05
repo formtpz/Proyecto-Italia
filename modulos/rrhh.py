@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from db import get_connection
+from db import leer_dataframe, transaccion
 from permisos import validar_acceso
 from datetime import date
 
@@ -28,19 +28,17 @@ def render():
         st.error(st.session_state["rrhh_error"])
         del st.session_state["rrhh_error"]
 
-    conn = get_connection()
-    cur = conn.cursor()
 
     # =========================
     # Supervisores disponibles
     # =========================
-    df_supervisores = pd.read_sql("""
+    df_supervisores = leer_dataframe("""
         SELECT nombre_completo
         FROM personal
         WHERE estado = 'activo'
           AND puesto <> 'Operario Catastral'
         ORDER BY nombre_completo
-    """, conn)
+    """)
 
     lista_supervisores = [""] + df_supervisores["nombre_completo"].tolist()
 
@@ -55,7 +53,7 @@ def render():
     # =====================================================
     if modo == "Personal Existente":
 
-        df_personal = pd.read_sql("""
+        df_personal = leer_dataframe("""
             SELECT
                 p.id,
                 p.cedula,
@@ -78,7 +76,7 @@ def render():
             LEFT JOIN personal_datos d
                 ON d.personal_id = p.id
             ORDER BY p.nombre_completo
-        """, conn)
+        """)
 
         empleado = st.selectbox(
             "Empleado",
@@ -162,59 +160,59 @@ def render():
 
         if guardar:
             try:
-                cur.execute("""
-                    UPDATE personal SET
-                        cedula = %s,
-                        nombre_completo = %s,
-                        contraseña = %s,
-                        puesto = %s,
-                        perfil = %s,
-                        horario = %s,
-                        estado = %s,
-                        supervisor = %s,
-                        fecha_desvinculacion = %s
-                    WHERE id = %s
-                """, (
-                    cedula,
-                    nombre,
-                    password,
-                    puesto,
-                    int(perfil),
-                    horario,
-                    estado,
-                    supervisor if supervisor else None,
-                    fecha_desv,
-                    int(row["id"])
-                ))
-
-                cur.execute("""
-                    INSERT INTO personal_datos (
-                        personal_id,
-                        nombre_completo_signos,
-                        correo_interno,
-                        correo_externo,
+                with transaccion() as cur:
+                    cur.execute("""
+                        UPDATE personal SET
+                            cedula = %s,
+                            nombre_completo = %s,
+                            contraseña = %s,
+                            puesto = %s,
+                            perfil = %s,
+                            horario = %s,
+                            estado = %s,
+                            supervisor = %s,
+                            fecha_desvinculacion = %s
+                        WHERE id = %s
+                    """, (
+                        cedula,
+                        nombre,
+                        password,
+                        puesto,
+                        int(perfil),
+                        horario,
+                        estado,
+                        supervisor if supervisor else None,
+                        fecha_desv,
+                        int(row["id"])
+                    ))
+    
+                    cur.execute("""
+                        INSERT INTO personal_datos (
+                            personal_id,
+                            nombre_completo_signos,
+                            correo_interno,
+                            correo_externo,
+                            telefono,
+                            nota_gis
+                        )
+                        VALUES (%s,%s,%s,%s,%s,%s)
+                        ON CONFLICT (personal_id)
+                        DO UPDATE SET
+                            nombre_completo_signos = EXCLUDED.nombre_completo_signos,
+                            correo_interno = EXCLUDED.correo_interno,
+                            correo_externo = EXCLUDED.correo_externo,
+                            telefono = EXCLUDED.telefono,
+                            nota_gis = EXCLUDED.nota_gis,
+                            fecha_actualizacion = CURRENT_TIMESTAMP
+                    """, (
+                        int(row["id"]),
+                        nombre_signos,
+                        correo_int,
+                        correo_ext,
                         telefono,
                         nota_gis
-                    )
-                    VALUES (%s,%s,%s,%s,%s,%s)
-                    ON CONFLICT (personal_id)
-                    DO UPDATE SET
-                        nombre_completo_signos = EXCLUDED.nombre_completo_signos,
-                        correo_interno = EXCLUDED.correo_interno,
-                        correo_externo = EXCLUDED.correo_externo,
-                        telefono = EXCLUDED.telefono,
-                        nota_gis = EXCLUDED.nota_gis,
-                        fecha_actualizacion = CURRENT_TIMESTAMP
-                """, (
-                    int(row["id"]),
-                    nombre_signos,
-                    correo_int,
-                    correo_ext,
-                    telefono,
-                    nota_gis
-                ))
-
-                conn.commit()
+                    ))
+    
                 st.session_state["rrhh_success"] = "✅ Personal actualizado correctamente"
                 st.rerun()
 
@@ -259,48 +257,48 @@ def render():
 
         if crear:
             try:
-                cur.execute("""
-                    INSERT INTO personal (
-                        cedula, nombre_completo, contraseña,
-                        puesto, perfil, horario,
-                        estado, supervisor, fecha_vinculacion
-                    )
-                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
-                    RETURNING id
-                """, (
-                    cedula,
-                    nombre,
-                    password,
-                    puesto,
-                    int(perfil),
-                    horario,
-                    estado,
-                    supervisor if supervisor else None,
-                    fecha_vinc
-                ))
-
-                personal_id = cur.fetchone()[0]
-
-                cur.execute("""
-                    INSERT INTO personal_datos (
+                with transaccion() as cur:
+                    cur.execute("""
+                        INSERT INTO personal (
+                            cedula, nombre_completo, contraseña,
+                            puesto, perfil, horario,
+                            estado, supervisor, fecha_vinculacion
+                        )
+                        VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                        RETURNING id
+                    """, (
+                        cedula,
+                        nombre,
+                        password,
+                        puesto,
+                        int(perfil),
+                        horario,
+                        estado,
+                        supervisor if supervisor else None,
+                        fecha_vinc
+                    ))
+    
+                    personal_id = cur.fetchone()[0]
+    
+                    cur.execute("""
+                        INSERT INTO personal_datos (
+                            personal_id,
+                            nombre_completo_signos,
+                            correo_interno,
+                            correo_externo,
+                            telefono,
+                            nota_gis
+                        )
+                        VALUES (%s,%s,%s,%s,%s,%s)
+                    """, (
                         personal_id,
-                        nombre_completo_signos,
-                        correo_interno,
-                        correo_externo,
+                        nombre_signos,
+                        correo_int,
+                        correo_ext,
                         telefono,
                         nota_gis
-                    )
-                    VALUES (%s,%s,%s,%s,%s,%s)
-                """, (
-                    personal_id,
-                    nombre_signos,
-                    correo_int,
-                    correo_ext,
-                    telefono,
-                    nota_gis
-                ))
-
-                conn.commit()
+                    ))
+    
                 st.session_state["rrhh_success"] = "✅ Personal creado correctamente"
                 st.rerun()
 
@@ -314,14 +312,14 @@ def render():
     st.divider()
     st.subheader("📋 Listado general de personal")
 
-    df_listado = pd.read_sql("""
+    df_listado = leer_dataframe("""
         SELECT
             nombre_completo,
             cedula,
             puesto
         FROM personal
         ORDER BY nombre_completo
-    """, conn)
+    """)
 
     if df_listado.empty:
         st.info("No hay personal registrado")
