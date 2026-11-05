@@ -162,9 +162,9 @@ def render():
                         INSERT INTO reportes (
                             tipo_reporte, cedula_personal, cedula_quien_reporta,
                             supervisor_nombre, fecha_reporte, semana, año, horas,
-                            tipo_evento_id, observaciones, perfil, puesto
+                            proceso_id, tipo_evento_id, observaciones, perfil, puesto
                         ) VALUES ('evento', %s, %s, %s, %s, %s, %s, %s,
-                                  %s, %s, %s, %s)
+                                  0, %s, %s, %s, %s)
                     """, (datos["cedula"], cedula_reporta, supervisor,
                           fecha_reporte, semana, año, horas, tipo_evento_id,
                           observaciones or None, datos["perfil"], datos["puesto"]))
