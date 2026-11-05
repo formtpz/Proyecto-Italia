@@ -1,6 +1,5 @@
 streamlit
 psycopg2-binary
+pandas
 python-dotenv
 pytz
-folium
-streamlit-folium
