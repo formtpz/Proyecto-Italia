@@ -13,16 +13,6 @@ def render():
 
     if st.button("Confirmar cierre de sesión"):
         # =========================
-        # Cerrar conexión a BD si existe
-        # =========================
-        conn = st.session_state.get("conn")
-        if conn:
-            try:
-                conn.close()
-            except:
-                pass
-
-        # =========================
         # Limpiar sesión
         # =========================
         st.session_state.clear()
