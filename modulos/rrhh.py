@@ -217,7 +217,6 @@ def render():
                 st.rerun()
 
             except Exception as e:
-                conn.rollback()
                 st.session_state["rrhh_error"] = f"❌ Error al guardar cambios: {e}"
                 st.rerun()
 
@@ -303,7 +302,6 @@ def render():
                 st.rerun()
 
             except Exception as e:
-                conn.rollback()
                 st.session_state["rrhh_error"] = f"❌ Error al crear personal: {e}"
                 st.rerun()
     # =====================================================
