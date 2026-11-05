@@ -297,20 +297,8 @@ def _coordinar():
                         cur.execute("SELECT 1 FROM tipos_evento WHERE id=%s", (nuevo,))
                         if cur.fetchone() is None:
                             raise ValueError("El tipo de evento indicado no existe.")
-                    cur.execute(sql.SQL("SELECT {} FROM reportes WHERE id=%s").format(
-                        sql.Identifier(columna)), (reporte_id,))
-                    anterior = cur.fetchone()[0]
                     cur.execute(sql.SQL("UPDATE reportes SET {}=%s WHERE id=%s").format(
                         sql.Identifier(columna)), (nuevo, reporte_id))
-                    cur.execute("""
-                        INSERT INTO correcciones_auditoria
-                            (correccion_id, reporte_id, cedula_solicitante, accion,
-                             columna, valor_anterior, valor_nuevo, procesado_por)
-                        VALUES (%s, %s, %s, 'Modificar', %s, %s, %s, %s)
-                    """, (solicitud_id, reporte_id, cedula_personal, columna,
-                          str(anterior) if anterior is not None else None,
-                          str(nuevo) if nuevo is not None else None,
-                          st.session_state["usuario"]["cedula"]))
                     cur.execute("""
                         UPDATE correcciones
                         SET estado='corregido', procesado_por=%s, procesado_en=NOW()
